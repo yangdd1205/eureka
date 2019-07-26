@@ -41,7 +41,14 @@ public class EurekaJerseyClientImpl implements EurekaJerseyClient {
     private static final int HTTPS_PORT = 443;
     private static final String KEYSTORE_TYPE = "JKS";
 
+    /**
+     * 基于 Apache HttpClient4 实现的 Jersey Client
+     */
     private final ApacheHttpClient4 apacheHttpClient;
+
+    /**
+     * Apache HttpClient 空闲连接清理器
+     */
     private final ApacheHttpClientConnectionCleaner apacheHttpClientConnectionCleaner;
 
     ClientConfig jerseyClientConfig;
@@ -50,12 +57,16 @@ public class EurekaJerseyClientImpl implements EurekaJerseyClient {
                                   ClientConfig clientConfig) {
         try {
             jerseyClientConfig = clientConfig;
+            // 创建  ApacheHttpClient
             apacheHttpClient = ApacheHttpClient4.create(jerseyClientConfig);
+
+            // 设置 连接参数
             HttpParams params = apacheHttpClient.getClientHandler().getHttpClient().getParams();
 
             HttpConnectionParams.setConnectionTimeout(params, connectionTimeout);
             HttpConnectionParams.setSoTimeout(params, readTimeout);
 
+            // 创建 ApacheHttpClientConnectionCleaner
             this.apacheHttpClientConnectionCleaner = new ApacheHttpClientConnectionCleaner(apacheHttpClient, connectionIdleTimeout);
         } catch (Throwable e) {
             throw new RuntimeException("Cannot create Jersey client", e);
@@ -199,6 +210,7 @@ public class EurekaJerseyClientImpl implements EurekaJerseyClient {
                     addProxyConfiguration(cm);
                 }
 
+                // 编解码
                 DiscoveryJerseyProvider discoveryJerseyProvider = new DiscoveryJerseyProvider(encoderWrapper, decoderWrapper);
                 getSingletons().add(discoveryJerseyProvider);
 
@@ -210,6 +222,7 @@ public class EurekaJerseyClientImpl implements EurekaJerseyClient {
                 String fullUserAgentName = (userAgent == null ? clientName : userAgent) + "/v" + buildVersion();
                 getProperties().put(CoreProtocolPNames.USER_AGENT, fullUserAgentName);
 
+                // 禁用重定向
                 // To pin a client to specific server in case redirect happens, we handle redirects directly
                 // (see DiscoveryClient.makeRemoteCall methods).
                 getProperties().put(PROPERTY_FOLLOW_REDIRECTS, Boolean.FALSE);

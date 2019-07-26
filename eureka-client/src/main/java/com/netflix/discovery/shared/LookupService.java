@@ -29,6 +29,9 @@ import com.netflix.appinfo.InstanceInfo;
 public interface LookupService<T> {
 
     /**
+     *
+     * 根据 appName 获取到注册的实例
+     *
      * Returns the corresponding {@link Application} object which is basically a
      * container of all registered <code>appName</code> {@link InstanceInfo}s.
      *
@@ -39,6 +42,9 @@ public interface LookupService<T> {
     Application getApplication(String appName);
 
     /**
+     *
+     * 获取当前全部注册实例
+     *
      * Returns the {@link Applications} object which is basically a container of
      * all currently registered {@link Application}s.
      *
@@ -47,6 +53,9 @@ public interface LookupService<T> {
     Applications getApplications();
 
     /**
+     *
+     * 根据 ID 匹配实例，单个实例有可能注册超过一次
+     *
      * Returns the {@link List} of {@link InstanceInfo}s matching the the passed
      * in id. A single {@link InstanceInfo} can possibly be registered w/ more
      * than one {@link Application}s
@@ -58,6 +67,9 @@ public interface LookupService<T> {
     List<InstanceInfo> getInstancesById(String id);
 
     /**
+     *
+     * 获取下一个服务来处理 Eureka 的注册请求
+     *
      * Gets the next possible server to process the requests from the registry
      * information received from eureka.
      *

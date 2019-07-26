@@ -9,8 +9,13 @@ import static com.netflix.discovery.shared.transport.PropertyBasedTransportConfi
  */
 public class DefaultEurekaTransportConfig implements EurekaTransportConfig {
     private static final String SUB_NAMESPACE = TRANSPORT_CONFIG_SUB_NAMESPACE + ".";
-
+    /**
+     * 命名空间
+     */
     private final String namespace;
+    /**
+     * 配置文件对象
+     */
     private final DynamicPropertyFactory configInstance;
 
     public DefaultEurekaTransportConfig(String parentNamespace, DynamicPropertyFactory configInstance) {

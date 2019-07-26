@@ -13,11 +13,23 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class StringCache {
 
+    /**
+     * 缓存字符串最大长度
+     */
     public static final int LENGTH_LIMIT = 38;
 
+    /**
+     * 字符串缓存单例
+     */
     private static final StringCache INSTANCE = new StringCache();
 
+    /**
+     * 读写锁，保证读写互斥。
+     */
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    /**
+     * 缓存哈希表。
+     */
     private final Map<String, WeakReference<String>> cache = new WeakHashMap<String, WeakReference<String>>();
     private final int lengthLimit;
 

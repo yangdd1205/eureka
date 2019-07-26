@@ -19,11 +19,26 @@ public class Key {
         Application, VIP, SVIP
     }
 
+    /**
+     * 实体名称
+     */
     private final String entityName;
     private final String[] regions;
+    /**
+     * 请求参数类型
+     */
     private final KeyType requestType;
+    /**
+     * 请求 API 版本号
+     */
     private final Version requestVersion;
+    /**
+     * hashkey
+     */
     private final String hashKey;
+    /**
+     * 实体类型
+     */
     private final EntityType entityType;
     private final EurekaAccept eurekaAccept;
 

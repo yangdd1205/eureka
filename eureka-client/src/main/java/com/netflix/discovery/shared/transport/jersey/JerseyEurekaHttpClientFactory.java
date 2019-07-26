@@ -127,15 +127,16 @@ public class JerseyEurekaHttpClientFactory implements TransportClientFactory {
                                                        Optional<SSLContext> sslContext,
                                                        Optional<HostnameVerifier> hostnameVerifier) {
         JerseyEurekaHttpClientFactoryBuilder clientBuilder = newBuilder()
-                .withAdditionalFilters(additionalFilters)
-                .withMyInstanceInfo(myInstanceInfo)
-                .withUserAgent("Java-EurekaClient")
+                .withAdditionalFilters(additionalFilters) // 客户端附加过滤器
+                .withMyInstanceInfo(myInstanceInfo) // 应用实例
+                .withUserAgent("Java-EurekaClient") // UA
                 .withClientConfig(clientConfig)
                 .withClientIdentity(clientIdentity);
         
         sslContext.ifPresent(clientBuilder::withSSLContext);
         hostnameVerifier.ifPresent(clientBuilder::withHostnameVerifier);
 
+        // 设置 Client Name
         if ("true".equals(System.getProperty("com.netflix.eureka.shouldSSLConnectionsUseSystemSocketFactory"))) {
             clientBuilder.withClientName("DiscoveryClient-HTTPClient-System").withSystemSSLConfiguration();
         } else if (clientConfig.getProxyHost() != null && clientConfig.getProxyPort() != null) {

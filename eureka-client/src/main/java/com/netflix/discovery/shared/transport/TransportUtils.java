@@ -16,6 +16,10 @@
 
 package com.netflix.discovery.shared.transport;
 
+import com.netflix.discovery.shared.transport.jersey.JerseyApplicationClient;
+import com.netflix.discovery.shared.transport.jersey.JerseyEurekaHttpClientFactory;
+
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -28,16 +32,36 @@ public final class TransportUtils {
 
     public static EurekaHttpClient getOrSetAnotherClient(AtomicReference<EurekaHttpClient> eurekaHttpClientRef, EurekaHttpClient another) {
         EurekaHttpClient existing = eurekaHttpClientRef.get();
+        // 为空才设置
         if (eurekaHttpClientRef.compareAndSet(null, another)) {
             return another;
         }
+        // 设置失败，意味着另外一个线程已经设置
         another.shutdown();
-        return existing;
+        // Fixing bug. 失败的线程直接返回 existing 的是 null
+        //return existing;
+        return eurekaHttpClientRef.get();
     }
 
     public static void shutdown(EurekaHttpClient eurekaHttpClient) {
         if (eurekaHttpClient != null) {
             eurekaHttpClient.shutdown();
         }
+    }
+
+    private static final CountDownLatch LATCH = new CountDownLatch(10);
+    public static void main(String[] args) throws InterruptedException {
+        AtomicReference<EurekaHttpClient> reference = new AtomicReference<>();
+
+        for (int i = 0; i < 10; i++) {
+            final int index = i;
+            EurekaHttpClient another = new JerseyApplicationClient(null,null,null);
+            new Thread(()->{
+                LATCH.countDown();
+                System.out.println("i: " +index +" : " + getOrSetAnotherClient(reference,another));
+            }).start();
+        }
+
+        Thread.sleep(Long.MAX_VALUE);
     }
 }

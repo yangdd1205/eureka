@@ -25,6 +25,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ *
+ * 使用可用区亲和的集群解析器
+ *
  * It is a cluster resolver that reorders the server list, such that the first server on the list
  * is in the same zone as the client. The server is chosen randomly from the available pool of server in
  * that zone. The remaining servers are appended in a random order, local zone first, followed by servers from other zones.
@@ -35,8 +38,21 @@ public class ZoneAffinityClusterResolver implements ClusterResolver<AwsEndpoint>
 
     private static final Logger logger = LoggerFactory.getLogger(ZoneAffinityClusterResolver.class);
 
+    /**
+     * 委托的解析器
+     * 目前代码里为 {@link ConfigClusterResolver}
+     */
     private final ClusterResolver<AwsEndpoint> delegate;
+    /**
+     * 应用实例的可用区
+     */
     private final String myZone;
+    /**
+     * 是否可用区亲和
+     *
+     * true: EndPoint 可用区为本地的优先被放在前面。
+     * false ：EndPoint 可用区非本地的优先被放在前面。
+     */
     private final boolean zoneAffinity;
 
     /**
@@ -55,10 +71,13 @@ public class ZoneAffinityClusterResolver implements ClusterResolver<AwsEndpoint>
 
     @Override
     public List<AwsEndpoint> getClusterEndpoints() {
+        // 拆分成 本地的可用区和非本地的可用区的 EndPoint 集群
         List<AwsEndpoint>[] parts = ResolverUtils.splitByZone(delegate.getClusterEndpoints(), myZone);
         List<AwsEndpoint> myZoneEndpoints = parts[0];
         List<AwsEndpoint> remainingEndpoints = parts[1];
+        // 随机打乱 EndPoint 集群并进行合并
         List<AwsEndpoint> randomizedList = randomizeAndMerge(myZoneEndpoints, remainingEndpoints);
+        // 非可用区亲和，将非本地的可用区的 EndPoint 集群放在前面
         if (!zoneAffinity) {
             Collections.reverse(randomizedList);
         }
@@ -70,13 +89,13 @@ public class ZoneAffinityClusterResolver implements ClusterResolver<AwsEndpoint>
 
     private static List<AwsEndpoint> randomizeAndMerge(List<AwsEndpoint> myZoneEndpoints, List<AwsEndpoint> remainingEndpoints) {
         if (myZoneEndpoints.isEmpty()) {
-            return ResolverUtils.randomize(remainingEndpoints);
+            return ResolverUtils.randomize(remainingEndpoints); // 打乱
         }
         if (remainingEndpoints.isEmpty()) {
-            return ResolverUtils.randomize(myZoneEndpoints);
+            return ResolverUtils.randomize(myZoneEndpoints); // 打乱
         }
-        List<AwsEndpoint> mergedList = ResolverUtils.randomize(myZoneEndpoints);
-        mergedList.addAll(ResolverUtils.randomize(remainingEndpoints));
+        List<AwsEndpoint> mergedList = ResolverUtils.randomize(myZoneEndpoints); // 打乱
+        mergedList.addAll(ResolverUtils.randomize(remainingEndpoints)); // 打乱
         return mergedList;
     }
 }

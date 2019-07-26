@@ -31,6 +31,9 @@ import com.netflix.appinfo.InstanceInfo;
 import com.netflix.appinfo.InstanceInfo.InstanceStatus;
 
 /**
+ *
+ * Eureka-Server 状态过滤器
+ *
  * Filter to check whether the eureka server is ready to take requests based on
  * its {@link InstanceStatus}.
  */
@@ -50,6 +53,7 @@ public class StatusFilter implements Filter {
     }
 
     /*
+     * 当 Eureka-Server 未处于开启( InstanceStatus.UP )状态，返回 HTTP 状态码 307 重定向
      * (non-Javadoc)
      *
      * @see javax.servlet.Filter#doFilter(javax.servlet.ServletRequest,

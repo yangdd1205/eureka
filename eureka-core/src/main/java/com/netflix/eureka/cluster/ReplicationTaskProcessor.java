@@ -75,9 +75,12 @@ class ReplicationTaskProcessor implements TaskProcessor<ReplicationTask> {
 
     @Override
     public ProcessingResult process(List<ReplicationTask> tasks) {
+        // 创建 批量提交同步操作任务的请求对象
         ReplicationList list = createReplicationListOf(tasks);
         try {
+            // 发起 批量提交同步操作任务的请求
             EurekaHttpResponse<ReplicationListResponse> response = replicationClient.submitBatchUpdates(list);
+            // 处理 批量提交同步操作任务的响应
             int statusCode = response.getStatusCode();
             if (!isSuccess(statusCode)) {
                 if (statusCode == 503) {
@@ -139,6 +142,7 @@ class ReplicationTaskProcessor implements TaskProcessor<ReplicationTask> {
     }
 
     private void handleBatchResponse(ReplicationTask task, ReplicationInstanceResponse response) {
+        // 执行成功
         int statusCode = response.getStatusCode();
         if (isSuccess(statusCode)) {
             task.handleSuccess();
@@ -146,6 +150,7 @@ class ReplicationTaskProcessor implements TaskProcessor<ReplicationTask> {
         }
 
         try {
+            // 执行失败
             task.handleFailure(response.getStatusCode(), response.getResponseEntity());
         } catch (Throwable e) {
             logger.error("Replication task {} error handler failure", task.getTaskName(), e);

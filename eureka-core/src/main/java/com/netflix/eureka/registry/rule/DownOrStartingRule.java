@@ -6,6 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ *
+ * 匹配实例 DOWN or STARTING.
+ *
  * This rule matches if the instance is DOWN or STARTING.
  *
  * Created by Nikos Michalakis on 7/13/16.

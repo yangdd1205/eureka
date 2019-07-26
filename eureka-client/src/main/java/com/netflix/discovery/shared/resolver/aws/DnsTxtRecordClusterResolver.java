@@ -79,11 +79,29 @@ public class DnsTxtRecordClusterResolver implements ClusterResolver<AwsEndpoint>
 
     private static final Logger logger = LoggerFactory.getLogger(DnsTxtRecordClusterResolver.class);
 
+    /**
+     * 地区
+     */
     private final String region;
+    /**
+     * 集群根地址，例如 txt.default.eureka.iocoder.cn
+     */
     private final String rootClusterDNS;
+    /**
+     * 是否解析可用区( zone )
+     */
     private final boolean extractZoneFromDNS;
+    /**
+     * 端口
+     */
     private final int port;
+    /**
+     * 是否安全
+     */
     private final boolean isSecure;
+    /**
+     * 相对地址
+     */
     private final String relativeUri;
 
     /**

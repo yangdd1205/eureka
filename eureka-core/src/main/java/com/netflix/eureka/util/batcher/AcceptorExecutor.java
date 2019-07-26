@@ -47,25 +47,68 @@ class AcceptorExecutor<ID, T> {
 
     private static final Logger logger = LoggerFactory.getLogger(AcceptorExecutor.class);
 
+    /**
+     * 待执行对队列最大数量
+     * {@link #processingOrder}
+     */
     private final int maxBufferSize;
+    /**
+     * 单个批量任务包含任务最大数量
+     */
     private final int maxBatchingSize;
+    /**
+     * 批量任务等待最大延迟时长，单位：毫秒
+     */
     private final long maxBatchingDelay;
 
+    /**
+     * 是否关闭
+     */
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
 
+    /**
+     * 接收任务队列
+     */
     private final BlockingQueue<TaskHolder<ID, T>> acceptorQueue = new LinkedBlockingQueue<>();
+    /**
+     * 重新执行任务队列
+     */
     private final BlockingDeque<TaskHolder<ID, T>> reprocessQueue = new LinkedBlockingDeque<>();
+    /**
+     * 接收任务线程
+     */
     private final Thread acceptorThread;
 
+    /**
+     * 待执行任务映射
+     */
     private final Map<ID, TaskHolder<ID, T>> pendingTasks = new HashMap<>();
+    /**
+     * 待执行队列
+     */
     private final Deque<ID> processingOrder = new LinkedList<>();
 
+    /**
+     * 单任务工作请求信号量
+     */
     private final Semaphore singleItemWorkRequests = new Semaphore(0);
+    /**
+     * 单任务工作队列
+     */
     private final BlockingQueue<TaskHolder<ID, T>> singleItemWorkQueue = new LinkedBlockingQueue<>();
 
+    /**
+     * 批量任务工作请求信号量
+     */
     private final Semaphore batchWorkRequests = new Semaphore(0);
+    /**
+     * 批量任务工作队列
+     */
     private final BlockingQueue<List<TaskHolder<ID, T>>> batchWorkQueue = new LinkedBlockingQueue<>();
 
+    /**
+     * 网络通信整形器
+     */
     private final TrafficShaper trafficShaper;
 
     /*
@@ -97,8 +140,10 @@ class AcceptorExecutor<ID, T> {
         this.maxBufferSize = maxBufferSize;
         this.maxBatchingSize = maxBatchingSize;
         this.maxBatchingDelay = maxBatchingDelay;
+        //创建 网络通信整形器
         this.trafficShaper = new TrafficShaper(congestionRetryDelayMs, networkFailureRetryMs);
 
+        // 创建 接收任务线程
         ThreadGroup threadGroup = new ThreadGroup("eurekaTaskExecutors");
         this.acceptorThread = new Thread(threadGroup, new AcceptorRunner(), "TaskAcceptor-" + id);
         this.acceptorThread.setDaemon(true);
@@ -119,14 +164,23 @@ class AcceptorExecutor<ID, T> {
         }
     }
 
+    /**
+     * 添加任务到接收任务队列
+     *
+     * @param id
+     * @param task
+     * @param expiryTime
+     */
     void process(ID id, T task, long expiryTime) {
         acceptorQueue.add(new TaskHolder<ID, T>(id, task, expiryTime));
         acceptedTasks++;
     }
 
     void reprocess(List<TaskHolder<ID, T>> holders, ProcessingResult processingResult) {
+        // 添加到 重新执行队列
         reprocessQueue.addAll(holders);
         replayedTasks += holders.size();
+        // 提交任务结果给 TrafficShaper
         trafficShaper.registerFailure(processingResult);
     }
 
@@ -177,25 +231,34 @@ class AcceptorExecutor<ID, T> {
         return singleItemWorkQueue.size() + batchWorkQueue.size();
     }
 
+    /**
+     * 任务接收线程 调度任务
+     */
     class AcceptorRunner implements Runnable {
         @Override
         public void run() {
             long scheduleTime = 0;
             while (!isShutdown.get()) {
                 try {
+                    // 处理完输入队列( 接收队列 + 重新执行队列 )
                     drainInputQueues();
 
+                    // 待执行任务数量
                     int totalItems = processingOrder.size();
 
+                    // 计算调度时间
                     long now = System.currentTimeMillis();
                     if (scheduleTime < now) {
                         scheduleTime = now + trafficShaper.transmissionDelay();
                     }
+                    // 调度
                     if (scheduleTime <= now) {
+                        // 调度批量任务
                         assignBatchWork();
+                        // 调度单任务
                         assignSingleItemWork();
                     }
-
+                    //1）任务执行器无任务请求，正在忙碌处理之前的任务；或者 2）任务延迟调度。睡眠 10 秒，避免资源浪费。
                     // If no worker is requesting data or there is a delay injected by the traffic shaper,
                     // sleep for some time to avoid tight loop.
                     if (totalItems == processingOrder.size()) {
@@ -216,9 +279,12 @@ class AcceptorExecutor<ID, T> {
 
         private void drainInputQueues() throws InterruptedException {
             do {
+                // 处理完重新执行队列
                 drainReprocessQueue();
+                // 处理完接收队列
                 drainAcceptorQueue();
 
+                // 所有队列为空，等待 10 ms，看接收队列是否有新任务
                 if (!isShutdown.get()) {
                     // If all queues are empty, block for a while on the acceptor queue
                     if (reprocessQueue.isEmpty() && acceptorQueue.isEmpty() && pendingTasks.isEmpty()) {
@@ -232,7 +298,7 @@ class AcceptorExecutor<ID, T> {
         }
 
         private void drainAcceptorQueue() {
-            while (!acceptorQueue.isEmpty()) {
+            while (!acceptorQueue.isEmpty()) { //循环，直到接收队列为空
                 appendTaskHolder(acceptorQueue.poll());
             }
         }
@@ -240,17 +306,18 @@ class AcceptorExecutor<ID, T> {
         private void drainReprocessQueue() {
             long now = System.currentTimeMillis();
             while (!reprocessQueue.isEmpty() && !isFull()) {
-                TaskHolder<ID, T> taskHolder = reprocessQueue.pollLast();
+                TaskHolder<ID, T> taskHolder = reprocessQueue.pollLast(); // 优先拿较新的任务
                 ID id = taskHolder.getId();
-                if (taskHolder.getExpiryTime() <= now) {
+                if (taskHolder.getExpiryTime() <= now) { // 过期
                     expiredTasks++;
-                } else if (pendingTasks.containsKey(id)) {
+                } else if (pendingTasks.containsKey(id)) { // 已存在
                     overriddenTasks++;
                 } else {
                     pendingTasks.put(id, taskHolder);
-                    processingOrder.addFirst(id);
+                    processingOrder.addFirst(id); // 提交到队头
                 }
             }
+            // 如果待执行队列已满，清空重新执行队列，放弃较早的任务
             if (isFull()) {
                 queueOverflows += reprocessQueue.size();
                 reprocessQueue.clear();
@@ -258,10 +325,12 @@ class AcceptorExecutor<ID, T> {
         }
 
         private void appendTaskHolder(TaskHolder<ID, T> taskHolder) {
+            // 如果待执行队列已满，移除待处理队列，放弃较早的任务
             if (isFull()) {
                 pendingTasks.remove(processingOrder.poll());
                 queueOverflows++;
             }
+            // 添加到待执行队列
             TaskHolder<ID, T> previousTask = pendingTasks.put(taskHolder.getId(), taskHolder);
             if (previousTask == null) {
                 processingOrder.add(taskHolder.getId());
@@ -271,11 +340,13 @@ class AcceptorExecutor<ID, T> {
         }
 
         void assignSingleItemWork() {
-            if (!processingOrder.isEmpty()) {
+            if (!processingOrder.isEmpty()) {// 待执行任队列不为空
+                // 获取 单任务工作请求信号量
                 if (singleItemWorkRequests.tryAcquire(1)) {
                     long now = System.currentTimeMillis();
+                    // 【循环】获取单任务
                     while (!processingOrder.isEmpty()) {
-                        ID id = processingOrder.poll();
+                        ID id = processingOrder.poll(); // 一定不为空
                         TaskHolder<ID, T> holder = pendingTasks.remove(id);
                         if (holder.getExpiryTime() > now) {
                             singleItemWorkQueue.add(holder);
@@ -283,29 +354,34 @@ class AcceptorExecutor<ID, T> {
                         }
                         expiredTasks++;
                     }
+                    // 获取不到单任务，释放请求信号量
                     singleItemWorkRequests.release();
                 }
             }
         }
 
         void assignBatchWork() {
+            // 是否有足够的任务进行下一次批量任务
             if (hasEnoughTasksForNextBatch()) {
-                if (batchWorkRequests.tryAcquire(1)) {
+                // 获取 批量任务工作请求信号量
+                if (batchWorkRequests.tryAcquire(1)) { //每一个信号量需要保证获取到一个批量任务。
+                    // 获取批量任务
                     long now = System.currentTimeMillis();
                     int len = Math.min(maxBatchingSize, processingOrder.size());
                     List<TaskHolder<ID, T>> holders = new ArrayList<>(len);
                     while (holders.size() < len && !processingOrder.isEmpty()) {
                         ID id = processingOrder.poll();
                         TaskHolder<ID, T> holder = pendingTasks.remove(id);
-                        if (holder.getExpiryTime() > now) {
+                        if (holder.getExpiryTime() > now) { // 判断是否过期
                             holders.add(holder);
                         } else {
                             expiredTasks++;
                         }
                     }
-                    if (holders.isEmpty()) {
+                    if (holders.isEmpty()) { // 未调度到批量任务，释放请求信号量
                         batchWorkRequests.release();
                     } else {
+                        // 添加批量任务到批量任务工作队列
                         batchSizeMetric.record(holders.size(), TimeUnit.MILLISECONDS);
                         batchWorkQueue.add(holders);
                     }
@@ -314,13 +390,16 @@ class AcceptorExecutor<ID, T> {
         }
 
         private boolean hasEnoughTasksForNextBatch() {
+            // 待执行队列为空
             if (processingOrder.isEmpty()) {
                 return false;
             }
+            // 待执行任务映射已满
             if (pendingTasks.size() >= maxBufferSize) {
                 return true;
             }
 
+            // 到达批量任务处理最大等待延迟( 通过待处理队列的头部任务判断 )
             TaskHolder<ID, T> nextHolder = pendingTasks.get(processingOrder.peek());
             long delay = System.currentTimeMillis() - nextHolder.getSubmitTimestamp();
             return delay >= maxBatchingDelay;

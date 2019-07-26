@@ -17,6 +17,8 @@ import com.netflix.servo.monitor.DynamicCounter;
 import com.netflix.servo.monitor.MonitorConfig;
 
 /**
+ * Eureka-Server 请求认证过滤器
+ *
  * An auth filter for client requests. For now, it only logs supported client identification data from header info
  */
 @Singleton
